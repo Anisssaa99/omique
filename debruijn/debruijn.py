@@ -102,8 +102,12 @@ def read_fastq(fastq_file: Path) -> Iterator[str]:
     :param fastq_file: (Path) Path to the fastq file.
     :return: A generator object that iterate the read sequences.
     """
-    pass
-
+    with open(fastq_file,'rt') as file:
+    	for sequence in file:
+    		yield next(file).replace('\n','')
+    		next(file)
+    		next(file)
+	
 
 def cut_kmer(read: str, kmer_size: int) -> Iterator[str]:
     """Cut read into kmers of size kmer_size.
@@ -111,7 +115,8 @@ def cut_kmer(read: str, kmer_size: int) -> Iterator[str]:
     :param read: (str) Sequence of a read.
     :return: A generator object that provides the kmers (str) of size kmer_size.
     """
-    pass
+    for i in range(0, len(read)-kmer_size+1):
+    	yield read[i:i+kmer_size]
 
 
 def build_kmer_dict(fastq_file: Path, kmer_size: int) -> Dict[str, int]:
@@ -120,7 +125,15 @@ def build_kmer_dict(fastq_file: Path, kmer_size: int) -> Dict[str, int]:
     :param fastq_file: (str) Path to the fastq file.
     :return: A dictionnary object that identify all kmer occurrences.
     """
-    pass
+    kmer_dict= {}
+    for read in read_fastq(fastq_file):
+    	for kmer in cut_kmer(read, kmer_size):
+    		if kmer in kmer_dict :
+    			kmer_dict[kmer]+=1
+    		else:
+    			kmer_dict[kmer]=1
+    return kmer_dict
+   
 
 
 def build_graph(kmer_dict: Dict[str, int]) -> DiGraph:
@@ -129,8 +142,11 @@ def build_graph(kmer_dict: Dict[str, int]) -> DiGraph:
     :param kmer_dict: A dictionnary object that identify all kmer occurrences.
     :return: A directed graph (nx) of all kmer substring and weight (occurrence).
     """
-    pass
-
+    graph =DiGraph()
+    for kmer in kmer_dict:
+	    graph.add_edge(kmer[:-1], kmer[1:], weight=kmer_dict[kmer])
+    return graph
+		
 
 def remove_paths(
     graph: DiGraph,
@@ -147,7 +163,16 @@ def remove_paths(
     :param delete_sink_node: (boolean) True->We remove the last node of a path
     :return: (nx.DiGraph) A directed graph object
     """
-    pass
+    for path in path_list:
+        if delete_entry_node and delete_sink_node:
+            graph.remove_nodes_from(path)  
+        elif delete_entry_node:
+            graph.remove_nodes_from(path[:-1])
+        elif delete_sink_node :
+            graph.remove_nodes_from(path[1:])
+        else:
+            graph.remove_nodes_from(path[1:-1])
+    return graph
 
 
 def select_best_path(
@@ -168,7 +193,15 @@ def select_best_path(
     :param delete_sink_node: (boolean) True->We remove the last node of a path
     :return: (nx.DiGraph) A directed graph object
     """
-    pass
+    weight = statistics.stdev(weight_avg_list)
+    if weight >0:
+        best_i = weight_avg_list.index(max(weight_avg_list))
+    elif statistics.stdev(path_length) >0 : 
+        best_i=path_length.index(max(path_length))
+    else :
+        best_i = random.randint(0,len(path_list)-1)
+    del path_list[best_i]
+    return remove_paths(graph, path_list, delete_entry_node, delete_sink_node)
 
 
 def path_average_weight(graph: DiGraph, path: List[str]) -> float:
