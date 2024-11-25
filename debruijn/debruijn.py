@@ -224,8 +224,15 @@ def solve_bubble(graph: DiGraph, ancestor_node: str, descendant_node: str) -> Di
     :param descendant_node: (str) A downstream node in the graph
     :return: (nx.DiGraph) A directed graph object
     """
-    pass
+    paths = list(nx.all_simple_paths(graph, ancestor, descendant))
+    lengths = [len(path) for path in paths]
+    weights = [path_average_weight(graph, path) for path in paths]
 
+    best_path = paths[max(range(len(paths)), key=lambda i: (weights[i], lengths[i]))]
+    for path in paths:
+        if path != best_path:
+            graph.remove_nodes_from(path[1:-1])
+    return graph
 
 def simplify_bubbles(graph: DiGraph) -> DiGraph:
     """Detect and explode bubbles
@@ -233,7 +240,15 @@ def simplify_bubbles(graph: DiGraph) -> DiGraph:
     :param graph: (nx.DiGraph) A directed graph object
     :return: (nx.DiGraph) A directed graph object
     """
-    pass
+    for node in list(graph.nodes):
+        predecessors = list(graph.predecessors(node))
+        if len(predecessors) > 1:
+            for i in range(len(predecessors)):
+                for j in range(i + 1, len(predecessors)):
+                    ancestor = nx.lowest_common_ancestor(graph, predecessors[i], predecessors[j])
+                    if ancestor:
+                        graph = solve_bubble(graph, ancestor, node)
+    return graph
 
 
 def solve_entry_tips(graph: DiGraph, starting_nodes: List[str]) -> DiGraph:
@@ -243,7 +258,19 @@ def solve_entry_tips(graph: DiGraph, starting_nodes: List[str]) -> DiGraph:
     :param starting_nodes: (list) A list of starting nodes
     :return: (nx.DiGraph) A directed graph object
     """
-    pass
+    for node in starting_nodes:
+        successors = list(graph.successors(node))
+        if len(successors) > 1:
+            paths = [list(nx.all_simple_paths(graph, node, succ)) for succ in successors]
+            all_paths = [path for sublist in paths for path in sublist]
+            lengths = [len(path) for path in all_paths]
+            weights = [path_average_weight(graph, path) for path in all_paths]
+
+            best_path = all_paths[max(range(len(all_paths)), key=lambda i: (weights[i], lengths[i]))]
+            for path in all_paths:
+                if path != best_path:
+                    graph.remove_nodes_from(path[1:])
+    return graph
 
 
 def solve_out_tips(graph: DiGraph, ending_nodes: List[str]) -> DiGraph:
@@ -253,7 +280,19 @@ def solve_out_tips(graph: DiGraph, ending_nodes: List[str]) -> DiGraph:
     :param ending_nodes: (list) A list of ending nodes
     :return: (nx.DiGraph) A directed graph object
     """
-    pass
+    for node in sink_nodes:
+        predecessors = list(graph.predecessors(node))
+        if len(predecessors) > 1:
+            paths = [list(nx.all_simple_paths(graph, pred, node)) for pred in predecessors]
+            all_paths = [path for sublist in paths for path in sublist]
+            lengths = [len(path) for path in all_paths]
+            weights = [path_average_weight(graph, path) for path in all_paths]
+
+            best_path = all_paths[max(range(len(all_paths)), key=lambda i: (weights[i], lengths[i]))]
+            for path in all_paths:
+                if path != best_path:
+                    graph.remove_nodes_from(path[:-1])
+    return graph
 
 
 def get_starting_nodes(graph: DiGraph) -> List[str]:
@@ -262,7 +301,7 @@ def get_starting_nodes(graph: DiGraph) -> List[str]:
     :param graph: (nx.DiGraph) A directed graph object
     :return: (list) A list of all nodes without predecessors
     """
-    pass
+    return [node for node in graph.nodes if not list(graph.predecessors(node))]
 
 
 def get_sink_nodes(graph: DiGraph) -> List[str]:
@@ -271,7 +310,7 @@ def get_sink_nodes(graph: DiGraph) -> List[str]:
     :param graph: (nx.DiGraph) A directed graph object
     :return: (list) A list of all nodes without successors
     """
-    pass
+    return [node for node in graph.nodes if not list(graph.successors(node))]
 
 
 def get_contigs(
@@ -284,7 +323,14 @@ def get_contigs(
     :param ending_nodes: (list) A list of nodes without successors
     :return: (list) List of [contiguous sequence and their length]
     """
-    pass
+    contigs = []
+    for start in starting_nodes:
+        for end in sink_nodes:
+            if nx.has_path(graph, start, end):
+                for path in nx.all_simple_paths(graph, start, end):
+                    contig = path[0] + ''.join(node[-1] for node in path[1:])
+                    contigs.append((contig, len(contig)))
+    return contigs
 
 
 def save_contigs(contigs_list: List[str], output_file: Path) -> None:
@@ -293,7 +339,11 @@ def save_contigs(contigs_list: List[str], output_file: Path) -> None:
     :param contig_list: (list) List of [contiguous sequence and their length]
     :param output_file: (Path) Path to the output file
     """
-    pass
+    with open(output_file, 'w') as f:
+        for i, (contig, length) in enumerate(contigs):
+            f.write(f">contig_{i} len={length}\n")
+            f.write("\n".join([contig[i:i+80] for i in range(0, len(contig), 80)]))
+            f.write("\n")
 
 
 def draw_graph(graph: DiGraph, graphimg_file: Path) -> None:  # pragma: no cover
